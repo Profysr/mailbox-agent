@@ -1,0 +1,151 @@
+{
+  "_comment": [
+    "gmail-inbox-manager ruleset template.",
+    "",
+    "FORMAT",
+    "  Each rule is an object with:",
+    "    name              human-readable category name (used in the digest)",
+    "    label             the Gmail label applied to matching mail",
+    "    archive           true  -> label + remove INBOX (mail stays in All Mail,",
+    "                                 fully reversible).",
+    "                     false -> label + KEEP in inbox",
+    "    match.from_contains     list of case-insensitive substrings matched",
+    "                             against the full From header",
+    "    match.subject_contains  list of case-insensitive substrings matched",
+    "                             against the Subject line",
+    "",
+    "  Within one rule ANY from_contains OR ANY subject_contains entry hits.",
+    "  Rules are evaluated TOP TO BOTTOM and the FIRST match wins — so put",
+    "  narrow rules above broad ones.",
+    "",
+    "  THE LAST RULE MUST BE THE CATCH-ALL: empty from_contains and",
+    "  empty subject_contains, and archive=false. That rule is what an",
+    "  unknown/unmatched sender lands on.",
+    "",
+    "DEFAULT SAFETY RULE",
+    "  'never archive unknown senders'. The catch-all rule has archive=false,",
+    "  so anything the script does not recognise is labelled with the",
+    "  fallback_label (default 'Unsorted') and STAYS in the inbox. The script",
+    "  refuses to start if the catch-all rule has archive=true.",
+    "",
+    "LABEL CREATION",
+    "  Labels listed here are created automatically ONLY if their exact name",
+    "  is in the config key 'approved_labels'. Run --dry-run first to see",
+    "  which labels would be new, then approve them.",
+    "",
+    "NOTE",
+    "  Every sender below is a clearly-marked EXAMPLE placeholder. Replace",
+    "  them with your own real senders and subjects before going live."
+  ],
+  "version": 1,
+  "rules": [
+    {
+      "name": "Banking",
+      "label": "Banking",
+      "archive": true,
+      "match": {
+        "from_contains": ["example-bank.example"],
+        "subject_contains": ["statement", "transaction alert"]
+      }
+    },
+    {
+      "name": "Social/Notifications",
+      "label": "Social",
+      "archive": true,
+      "match": {
+        "from_contains": ["example-social.example"],
+        "subject_contains": ["notification", "mentioned you", "new follower"]
+      }
+    },
+    {
+      "name": "Security-Action",
+      "label": "Security",
+      "archive": false,
+      "match": {
+        "from_contains": [],
+        "subject_contains": ["suspicious", "unusual", "password changed", "new sign-in", "signed in on a new device", "passkey", "2-step verification", "two-step verification"]
+      }
+    },
+    {
+      "name": "Security",
+      "label": "Security",
+      "archive": true,
+      "match": {
+        "from_contains": ["example-security.example"],
+        "subject_contains": ["security alert", "security notification"]
+      }
+    },
+    {
+      "name": "Finance/Tax",
+      "label": "Finance-Tax",
+      "archive": false,
+      "match": {
+        "from_contains": ["example-tax-authority.example"],
+        "subject_contains": []
+      }
+    },
+    {
+      "name": "Receipts/Orders",
+      "label": "Receipts",
+      "archive": true,
+      "match": {
+        "from_contains": [],
+        "subject_contains": ["receipt", "invoice", "order confirmation", "payment received"]
+      }
+    },
+    {
+      "name": "Careers-Direct",
+      "label": "Careers",
+      "archive": false,
+      "match": {
+        "from_contains": ["example-recruiter.example", "example-hiring.example"],
+        "subject_contains": []
+      }
+    },
+    {
+      "name": "Jobs-Digests",
+      "label": "Jobs",
+      "archive": true,
+      "match": {
+        "from_contains": ["example-jobboard.example"],
+        "subject_contains": ["job alert", "jobs you may like", "recommended job", "jobs for you"]
+      }
+    },
+    {
+      "name": "Newsletters/Promotions",
+      "label": "Newsletters",
+      "archive": true,
+      "match": {
+        "from_contains": ["noreply", "no-reply", "newsletter", "promo", "deals", "marketing"],
+        "subject_contains": ["unsubscribe"]
+      }
+    },
+    {
+      "name": "Personal",
+      "label": "Personal",
+      "archive": false,
+      "match": {
+        "from_contains": ["example-personal.example"],
+        "subject_contains": []
+      }
+    },
+    {
+      "name": "Subscriptions",
+      "label": "Subscriptions",
+      "archive": true,
+      "match": {
+        "from_contains": ["example-service.example"],
+        "subject_contains": []
+      }
+    },
+    {
+      "name": "Unsorted",
+      "label": "Unsorted",
+      "archive": false,
+      "match": {
+        "from_contains": [],
+        "subject_contains": []
+      }
+    }
+  ]
+}

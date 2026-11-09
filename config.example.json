@@ -1,0 +1,63 @@
+{
+  "_comment": "gmail-inbox-manager configuration. Copy this file to config.json and edit every path. Relative paths are resolved against the directory containing this config file. The script reads the config from the CONFIG env var, or ./config.json if CONFIG is unset.",
+
+  "_comment_paths": "OAuth token + client secret. token_path is the authorized-user JSON produced by setup_token.py. client_secret_path is the OAuth client secret downloaded from Google Cloud (only needed for setup_token.py, not at run time).",
+  "token_path": "./google_token.json",
+  "client_secret_path": "./client_secret.json",
+
+  "_comment_scopes": "gmail.modify is the minimum scope needed: it allows adding labels, marking read and archiving. Do NOT add gmail.send — the script never sends mail.",
+  "scopes": ["https://www.googleapis.com/auth/gmail.modify"],
+
+  "_comment_files": "Ruleset, state files and logs.",
+  "rules_path": "./rules.json",
+  "state_dir": "./state",
+  "label_map_path": "./state/labels.json",
+  "processed_ids_path": "./state/processed_ids.json",
+  "contacts_path": "./state/contacts.json",
+  "followups_path": "./state/followups.json",
+  "attachments_state_path": "./state/attachments.json",
+  "log_dir": "./logs",
+  "run_log": "./logs/gmail_inbox_manager.log",
+  "audit_log": "./logs/actions.log",
+  "attachment_dest": "./attachments",
+
+  "_comment_limits": "Scan cap and chunking. page_size and pass_size must stay <= 25 (Gmail API quota etiquette); modify_chunk must stay <= 50 ids per batchModify call.",
+  "max_messages": 300,
+  "page_size": 25,
+  "pass_size": 25,
+  "batch_size": 25,
+  "modify_chunk": 50,
+
+  "_comment_timing": "api_sleep_seconds is the pause between Gmail API calls and MUST be >= 1.5. backoff_base_seconds/backoff_max_seconds drive the exponential backoff; batch_retries is the number of tries per call; max_strikes is how many consecutive 429/403/5xx failures abort the run.",
+  "api_sleep_seconds": 1.5,
+  "batch_retries": 5,
+  "backoff_base_seconds": 1,
+  "backoff_max_seconds": 8,
+  "max_strikes": 3,
+
+  "_comment_state": "state_keep = how many processed message ids are kept for idempotency. followup_days = thread-scan window. attachment_days = attachment-extraction window.",
+  "state_keep": 20000,
+  "followup_days": 3,
+  "attachment_days": 2,
+
+  "_comment_digest": "Digest size limits. digest_max_chars truncates the stdout digest; digest_max_items caps the list length per section; summary_max = body summaries per run; summary_chars = characters per summary.",
+  "digest_max_items": 8,
+  "digest_max_chars": 1500,
+  "summary_max": 5,
+  "summary_chars": 300,
+
+  "_comment_features": "Set enable_* to false to switch the optional stages off. The core stage (classify -> label -> mark read -> archive) always runs.",
+  "enable_followups": true,
+  "enable_contacts": true,
+  "enable_attachments": true,
+
+  "_comment_misc": "write_refreshed_token: set true to let the script persist a refreshed OAuth token back to token_path (false = the token file is only read). contact_skip_domains: sender domains never counted as new contacts. fallback_label: the label used for unmatched/unknown senders; unknown mail is never archived.",
+  "write_refreshed_token": false,
+  "contact_skip_domains": ["google.com"],
+  "fallback_label": "Unsorted",
+  "max_file_bytes": 26214400,
+  "max_msg_bytes": 31457280,
+
+  "_comment_label_approval": "LABEL-APPROVAL GATE. A label that does not exist in the mailbox is created ONLY if its exact name appears in approved_labels. Run the script with --dry-run first: the digest prints an EXISTING list and a NEW (would-create) list. Copy the NEW labels you want into approved_labels, then run live. A live run that needs an unapproved label prints a REFUSED line naming the label and leaves those messages untouched.",
+  "approved_labels": []
+}

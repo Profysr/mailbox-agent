@@ -1,0 +1,12 @@
+# Machine-local instance files — never share these (they carry personal
+# paths, a real ruleset and/or credentials).
+config.json
+rules.json
+*client_secret*.json
+*token*.json
+
+# Runtime state — created at run time.
+state/
+logs/
+attachments/
+__pycache__/

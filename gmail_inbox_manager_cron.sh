@@ -23,4 +23,8 @@ PYTHON=${PYTHON:-python3}
 SCRIPT=${SCRIPT:-"$HERE/gmail_inbox_manager.py"}
 
 # The script reads CONFIG itself; --dry-run/extra flags are passed through.
-exec "$PYTHON" "$SCRIPT" --config "$CONFIG" "$@"
+# Single-instance lock: if a previous run is still going (long backfill),
+# the new run exits immediately instead of racing it on the state files.
+# flock exits 1 when the lock is taken — that is the cron failure alert
+# for an overrun run, by design.
+exec flock -n "$HERE/.run.lock" "$PYTHON" "$SCRIPT" --config "$CONFIG" "$@"

@@ -10,4 +10,5 @@ state/
 logs/
 attachments/
 __pycache__/
+.run.lock
 test*

@@ -255,6 +255,11 @@ and passes extra flags through. stdout IS the notification message: empty
 stdout = silent run (nothing changed); non-empty stdout = digest; exit 1 =
 failure alert. It is no-agent and generalized to config paths.
 
+A single-instance lock (`.run.lock`, via `flock -n`) makes a run that
+overlaps a still-running one exit 1 immediately instead of racing it on
+the state files — so an overrun shows up as an alert, never as corrupted
+state.
+
 The delivery target is configured by your OPERATOR/scheduler — this package
 only prints the digest on stdout and never hard-codes a channel or webhook.
 There is no `delivery` key in the config: pipe stdout to mail, a webhook

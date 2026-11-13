@@ -14,6 +14,12 @@ Headless machine (no browser):
     python3 setup_token.py --client-secret ./client_secret.json \
         --token-out ./google_token.json --headless
     -> prints a URL; open it yourself, sign in, paste the code back here.
+    NOTE: Google deprecated the paste-a-code flow; if Google rejects it,
+    use a port forward instead:
+        laptop:  ssh -L 9090:localhost:9090 you@server
+        server:  python3 setup_token.py --client-secret ./client_secret.json \
+                     --token-out ./google_token.json --port 9090
+        then open http://localhost:9090 in the laptop's browser.
 
 Prerequisite: pip install google-auth-oauthlib (only needed for this script,
 not for the manager itself).
@@ -42,6 +48,10 @@ def main():
     ap.add_argument("--headless", action="store_true",
                     help="no local browser: print the consent URL, then "
                          "paste the authorization code back.")
+    ap.add_argument("--port", type=int, default=0,
+                    help="localhost port for the consent redirect (0 = a "
+                         "random free port). Use with `ssh -L` to authorize "
+                         "from a laptop while the server has no browser.")
     args = ap.parse_args()
 
     try:
@@ -68,7 +78,7 @@ def main():
         flow.fetch_token(code=code)
         creds = flow.credentials
     else:
-        creds = flow.run_local_server(port=0, access_type="offline",
+        creds = flow.run_local_server(port=args.port, access_type="offline",
                                       prompt="consent")
 
     if not creds.valid:

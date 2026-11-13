@@ -101,6 +101,14 @@ fixed path — every path comes from config.json.
 
     python3 setup_token.py --client-secret ./client_secret.json --token-out ./google_token.json --headless
 
+   **`--headless` may be rejected by Google** — the paste-a-code
+   (out-of-band) flow it uses is deprecated. The reliable alternative on a
+   server is a port forward: from your laptop run
+   `ssh -L 9090:localhost:9090 you@server`, then on the server run
+   setup_token.py with `--port 9090`, and open http://localhost:9090 in the
+   laptop's browser to finish the consent — the token is written on the
+   server.
+
    The token is written with mode 600, contains a refresh token (one-time
    setup), and requests scope gmail.modify only — gmail.send is deliberately
    NOT requested because the manager never sends mail.
@@ -132,10 +140,8 @@ The script reads config from the $CONFIG environment variable, falling back to
 | key | what it is |
 |-----|------------|
 | token_path | the token from Step 2 (default ./google_token.json) |
-| client_secret_path | the OAuth client secret (setup_token.py only) |
 | rules_path | the ruleset (default ./rules.json) |
 | state_dir | where state files live (default ./state) |
-| label_map_path | label name -> id cache (default ./state/labels.json) |
 | processed_ids_path | processed-message ids for idempotency |
 | contacts_path / followups_path / attachments_state_path | optional state |
 | log_dir / run_log / audit_log | logs; audit_log is append-only JSON lines |

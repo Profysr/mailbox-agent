@@ -1,9 +1,8 @@
 {
   "_comment": "gmail-inbox-manager configuration. Copy this file to config.json and edit every path. Relative paths are resolved against the directory containing this config file. The script reads the config from the CONFIG env var, or ./config.json if CONFIG is unset.",
 
-  "_comment_paths": "OAuth token + client secret. token_path is the authorized-user JSON produced by setup_token.py. client_secret_path is the OAuth client secret downloaded from Google Cloud (only needed for setup_token.py, not at run time).",
+  "_comment_paths": "OAuth token. token_path is the authorized-user JSON produced by setup_token.py. The OAuth client secret (client_secret.json, downloaded from Google Cloud) is passed to setup_token.py with its --client-secret flag, not via this config.",
   "token_path": "./google_token.json",
-  "client_secret_path": "./client_secret.json",
 
   "_comment_scopes": "gmail.modify is the minimum scope needed: it allows adding labels, marking read and archiving. Do NOT add gmail.send — the script never sends mail.",
   "scopes": ["https://www.googleapis.com/auth/gmail.modify"],
@@ -11,7 +10,6 @@
   "_comment_files": "Ruleset, state files and logs.",
   "rules_path": "./rules.json",
   "state_dir": "./state",
-  "label_map_path": "./state/labels.json",
   "processed_ids_path": "./state/processed_ids.json",
   "contacts_path": "./state/contacts.json",
   "followups_path": "./state/followups.json",

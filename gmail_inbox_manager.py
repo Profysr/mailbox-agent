@@ -57,13 +57,9 @@ from pathlib import Path
 # --------------------------------------------------------------------------
 DEFAULTS = {
     "token_path": "~/.config/gmail-inbox-manager/token.json",
-    # !! Unused — resolved from config but never consumed by the pipeline;
-    # setup_token.py takes its own --client-secret flag instead.
-    "client_secret_path": "",
     "scopes": ["https://www.googleapis.com/auth/gmail.modify"],
     "rules_path": "./rules.json",
     "state_dir": "./state",
-    "label_map_path": "./state/labels.json",
     "processed_ids_path": "./state/processed_ids.json",
     "contacts_path": "./state/contacts.json",
     "followups_path": "./state/followups.json",
@@ -131,8 +127,8 @@ def load_config(path):
         p = Path(v)
         return str((base / p).resolve()) if not p.is_absolute() else str(p)
 
-    for key in ("token_path", "client_secret_path", "rules_path", "state_dir",
-                "label_map_path", "processed_ids_path", "contacts_path",
+    for key in ("token_path", "rules_path", "state_dir",
+                "processed_ids_path", "contacts_path",
                 "followups_path", "attachments_state_path", "log_dir",
                 "run_log", "audit_log", "attachment_dest"):
         if key in cfg:
@@ -411,7 +407,7 @@ class LabelApprovalError(Exception):
     """Raised when a live run needs a label that is not approved."""
 
 
-def resolve_labels(service, cfg, rules, labelmap, dry_run, log):
+def resolve_labels(service, cfg, rules, dry_run, log):
     """Resolve label name -> id, creating missing labels ONLY when approved.
 
     Returns (label_ids, plan) where plan is a dict:
@@ -441,7 +437,6 @@ def resolve_labels(service, cfg, rules, labelmap, dry_run, log):
         if key in existing:
             label_ids[name] = existing[key]
             plan["existing"].append(name)
-            labelmap.setdefault("labels", {})[key] = existing[key]
             continue
         if name in approved:
             plan["approved_new"].append(name)
@@ -457,7 +452,6 @@ def resolve_labels(service, cfg, rules, labelmap, dry_run, log):
                                      .execute()),
                 log, f"labels.create {name}", cfg)
             label_ids[name] = created["id"]
-            labelmap.setdefault("labels", {})[key] = created["id"]
             log(f"created label '{name}' -> {created['id']}")
             time.sleep(cfg["api_sleep_seconds"])
             continue
@@ -477,27 +471,6 @@ def resolve_labels(service, cfg, rules, labelmap, dry_run, log):
 # --------------------------------------------------------------------------
 # Fetch: paginate the inbox, then batch metadata gets
 # --------------------------------------------------------------------------
-
-# !! Duplicate — byte-for-byte the same pagination loop as list_filtered_ids();
-# this is list_filtered_ids(service, cfg, "in:inbox", ...) with a copied loop.
-def list_inbox_ids(service, cfg, max_msgs, log):
-    ids, token = [], None
-    while len(ids) < max_msgs:
-        kwargs = {"userId": "me", "q": "in:inbox",
-                  "maxResults": min(cfg["page_size"], max_msgs - len(ids))}
-        if token:
-            kwargs["pageToken"] = token
-        resp = api_call(
-            lambda: with_timeout(120, lambda: service.users().messages()
-                                 .list(**kwargs).execute()),
-            log, "messages.list", cfg)
-        ids.extend(m["id"] for m in resp.get("messages", []))
-        token = resp.get("nextPageToken")
-        if not token or not resp.get("messages"):
-            break
-        time.sleep(cfg["api_sleep_seconds"])
-    return ids
-
 
 def list_filtered_ids(service, cfg, query, max_msgs, log, what):
     """List message ids matching a Gmail query (used by --scope all and
@@ -805,23 +778,7 @@ def extract_attachments(service, cfg, att_state, dest, days, me, log, dry):
     """Extract attachments from recent messages. Own outgoing mail is
     skipped; size caps apply. Returns (extracted_metas, skipped)."""
     query = f"newer_than:{days}d has:attachment"
-    ids, token = [], None
-    limit = 100
-    # !! Duplicate — same page-loop as list_filtered_ids (attachments vs messages)
-    while len(ids) < limit:
-        kwargs = {"userId": "me", "q": query,
-                  "maxResults": min(cfg["page_size"], limit - len(ids))}
-        if token:
-            kwargs["pageToken"] = token
-        resp = api_call(
-            lambda: with_timeout(120, lambda: service.users().messages()
-                                 .list(**kwargs).execute()),
-            log, "attachments list", cfg)
-        ids.extend(m["id"] for m in resp.get("messages", []))
-        token = resp.get("nextPageToken")
-        if not token or not resp.get("messages"):
-            break
-        time.sleep(cfg["api_sleep_seconds"])
+    ids = list_filtered_ids(service, cfg, query, 100, log, "attachments list")
     max_file = cfg.get("max_file_bytes", 25 * 1024 * 1024)
     max_msg = cfg.get("max_msg_bytes", 30 * 1024 * 1024)
     extracted, skipped = [], []
@@ -984,7 +941,7 @@ def apply_actions(service, cfg, plans, label_ids, dry_run, log):
 
 def render_digest(cfg, now, scanned, cat_counts, archived, kept, errors,
                   summaries, followups_new, new_contacts, att_extracted,
-                  label_plan, refused_labels):
+                  att_skipped, label_plan, refused_labels):
     cats = "\n".join(f"- {k}: {v}" for k, v in
                      sorted(cat_counts.items(), key=lambda kv: -kv[1]))
     lines = [
@@ -1034,10 +991,12 @@ def render_digest(cfg, now, scanned, cat_counts, archived, kept, errors,
         lines += ["", "💬 **Summaries (new important mail)**"]
         for s in summaries[:cfg["digest_max_items"]]:
             lines.append(f"- {s['subject'][:80]}: {s['summary'][:160]}")
-    if att_extracted:
+    if att_extracted or att_skipped:
         n_files = sum(len(m["files"]) for m in att_extracted)
         lines += ["", f"📎 **Attachments: {n_files} file(s) from "
                       f"{len(att_extracted)} message(s)**"]
+        if att_skipped:
+            lines.append(f"- {len(att_skipped)} file(s) skipped (size caps)")
     out = "\n".join(lines)
     if len(out) > cfg["digest_max_chars"]:
         out = out[:cfg["digest_max_chars"] - 10] + "…"
@@ -1186,8 +1145,6 @@ def main(argv=None):
         cfg["attachment_days"] = args.att_days
 
     dry = args.dry_run or bool(os.environ.get("DRY_RUN"))
-    if dry:
-        os.environ["DRY_RUN"] = "1"  # !! Unused — nothing reads DRY_RUN again this run
 
     log = make_logger(cfg["run_log"])
     log(f"=== gmail-inbox-manager start mode={'DRY-RUN' if dry else 'LIVE'} "
@@ -1215,10 +1172,7 @@ def main(argv=None):
         log, "getProfile", cfg).get("emailAddress", "").lower()
     log(f"account={me}")
 
-    # !! Unused — write-only cache: state/labels.json is saved every run but
-    # never read back for lookups; resolve_labels() re-queries the API anyway.
-    labelmap = load_json(cfg["label_map_path"], {"version": 1, "labels": {}})
-    label_ids, plan = resolve_labels(service, cfg, rules, labelmap, dry, log)
+    label_ids, plan = resolve_labels(service, cfg, rules, dry, log)
     log(f"label plan: existing={len(plan['existing'])} "
         f"approved_new={len(plan['approved_new'])} "
         f"unapproved={len(plan['unapproved'])}")
@@ -1243,9 +1197,6 @@ def main(argv=None):
             emit(con, "- (none)")
         return 0
 
-    if not dry:
-        save_json(cfg["label_map_path"], labelmap)
-
     state = load_json(cfg["processed_ids_path"], {"version": 1, "processed": []})
     processed = set(state.get("processed", []))
     follow_state = load_json(cfg["followups_path"], {"version": 1, "threads": {}})
@@ -1267,7 +1218,8 @@ def main(argv=None):
         ids = list_unlabeled_ids(service, cfg, label_names, cfg["max_messages"],
                                   log)
     else:
-        ids = list_inbox_ids(service, cfg, cfg["max_messages"], log)
+        ids = list_filtered_ids(service, cfg, "in:inbox",
+                                cfg["max_messages"], log, "messages.list")
 
     if args.recheck:
         pending = list(ids)
@@ -1408,11 +1360,10 @@ def main(argv=None):
             save_json(cfg["contacts_path"], contacts)
 
     att_extracted = []
+    att_skipped = []
     if cfg["enable_attachments"] and not args.skip_attachments:
         try:
-            # !! Unused — the per-file skip reasons are computed but never
-            # reported anywhere (digest and log only see att_extracted).
-            att_extracted, _skipped = extract_attachments(
+            att_extracted, att_skipped = extract_attachments(
                 service, cfg, att_state, cfg["attachment_dest"],
                 cfg["attachment_days"], me, log, dry)
             if not dry and att_extracted:
@@ -1428,7 +1379,7 @@ def main(argv=None):
     digest = render_digest(cfg, now, len(plans), cat_counts,
                            archived_count, kept_count, all_errors,
                            summaries, fu_new, new_contacts, att_extracted,
-                           plan, plan.get("refused", []))
+                           att_skipped, plan, plan.get("refused", []))
     if dry:
         digest = "(DRY-RUN — nothing was modified)\n" + digest
     print(digest)

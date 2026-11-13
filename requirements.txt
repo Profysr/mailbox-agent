@@ -3,3 +3,5 @@
 google-api-python-client
 google-auth
 google-auth-oauthlib   # only needed for setup_token.py (one-time token setup)
+rich                   # pretty --check/--print-plan output (optional: the
+                       # script falls back to plain text if rich is absent)

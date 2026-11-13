@@ -10,3 +10,4 @@ state/
 logs/
 attachments/
 __pycache__/
+test*

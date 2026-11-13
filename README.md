@@ -6,6 +6,27 @@ send, reply, trash, or delete. Productized from the Gmail consolidated inbox
 manager so a third party can set it up on their own machine with their own
 Gmail account.
 
+## Quickstart
+
+The whole path in one block; each step is detailed below.
+
+    git clone <your-repo-url> gmail-inbox-manager
+    cd gmail-inbox-manager
+    python3 -m venv .venv && . .venv/bin/activate
+    python3 -m pip install -r requirements.txt
+    cp config.example.json config.json
+    cp rules.template.json rules.json        # then edit senders/subjects
+    # one-time OAuth setup (Step 2 — Google Cloud project + client secret):
+    python3 setup_token.py --client-secret ./client_secret.json --token-out ./google_token.json
+    python3 gmail_inbox_manager.py --check           # pre-flight, no API calls
+    python3 gmail_inbox_manager.py --dry-run --max 25  # review counts + new labels
+    # copy the NEW labels into approved_labels in config.json, then:
+    python3 gmail_inbox_manager.py --max 50          # first live run
+    0 * * * * CONFIG=$PWD/config.json $PWD/gmail_inbox_manager_cron.sh
+
+Every new user needs their OWN Google Cloud project, OAuth client, token,
+`config.json` and `rules.json` — those are per-person and gitignored.
+
 ## Safety invariants (never relaxed, not configurable)
 
 - Never sends, replies, trashes, or deletes a message.
@@ -26,19 +47,26 @@ Gmail account.
 
 ## Requirements
 
-- Linux (or WSL) with Python 3.10 or newer
+- **Linux (or WSL)** with Python 3.10 or newer. On Windows use WSL: the
+  script uses POSIX-only timeout handling (SIGALRM) and the launcher is a
+  `sh` script, so plain PowerShell / Task Scheduler will NOT work — run
+  everything inside a WSL shell (cron there, or `wsl.exe` from Task
+  Scheduler).
 - A Gmail account
-- Python packages: google-api-python-client, google-auth, and
-  google-auth-oauthlib (the last only for the one-time token setup)
+- Python packages from `requirements.txt`: google-api-python-client and
+  google-auth for the pipeline, google-auth-oauthlib only for the one-time
+  token setup, and rich for the pretty `--check` / `--print-plan` output
+  (optional — the script falls back to plain text if rich is absent)
 
-    python3 -m pip install --upgrade google-api-python-client google-auth google-auth-oauthlib
+Use a virtualenv so the dependencies stay isolated:
+
+    python3 -m venv .venv
+    . .venv/bin/activate
+    python3 -m pip install -r requirements.txt
 
 Check:
 
     python3 -c "import googleapiclient, google.oauth2.credentials; print('deps ok')"
-
-On Windows the same commands work in PowerShell; run the Python script
-directly (via Task Scheduler) instead of the sh-based cron launcher.
 
 ## Step 1 — Get the code
 
@@ -77,6 +105,17 @@ fixed path — every path comes from config.json.
    setup), and requests scope gmail.modify only — gmail.send is deliberately
    NOT requested because the manager never sends mail.
 
+   **Keep the token private** — it carries a refresh token for your mailbox.
+   It is gitignored, written mode 600, and `--check` verifies the
+   permissions. Never commit or share it.
+
+   **Testing-status warning:** Google expires refresh tokens issued while
+   the consent screen is in *Testing* status after about 7 days — a week
+   later every run dies with "Re-run setup_token.py to re-authorize".
+   Either re-run `setup_token.py` when that happens, or publish the app
+   (OAuth consent screen → Publishing status) so the token keeps refreshing
+   unattended.
+
 ## Step 3 — Config
 
     cp config.example.json config.json
@@ -110,7 +149,6 @@ The script reads config from the $CONFIG environment variable, falling back to
 | enable_followups / enable_contacts / enable_attachments | optional stages on/off |
 | fallback_label | label for unmatched senders (default Unsorted) |
 | approved_labels | THE approval gate — label names the script may create (default []) |
-| delivery.webhook_url | leave empty if your cron delivers stdout directly |
 
 ## Step 4 — Rules and policy
 
@@ -134,9 +172,16 @@ Read POLICY.example.md and fill in the prompts ("write your own" sections)
 before your first live run — it explains which categories may leave the inbox
 and why the catch-all rule must never archive.
 
-Validate the ruleset without touching the mailbox:
+Validate the ruleset without touching the mailbox — this is the same check
+the script runs at start-up, so it enforces the catch-all invariant above
+(a plain JSON parse does not):
 
-    python3 -c "import json; d=json.load(open('rules.json')); print(len(d['rules']), 'rules')"
+    python3 -c "from gmail_inbox_manager import load_rules; load_rules('rules.json'); print('rules ok')"
+
+Then run the full pre-flight — dependencies, config, ruleset, token file
+and token permissions, with NO Gmail API call:
+
+    python3 gmail_inbox_manager.py --check
 
 ## Step 5 — Dry-run (review counts + planned labels)
 
@@ -152,20 +197,51 @@ Review the counts and the planned-new-label list before going live.
 
 ## Step 6 — Approve labels (the label-approval gate)
 
-A label that does not exist yet is created in LIVE mode ONLY if its exact name
-is listed in config `approved_labels` (default []). Creating an unapproved
-label is refused: a clear stderr line names the label and explains how to
-approve it, and the messages that would have used it are left untouched.
+**Why it exists.** `rules.json` names labels ("Receipts", "Banking", …) that
+may not exist in your mailbox yet. A live run may create missing labels —
+but only after you have explicitly listed each name in the config key
+`approved_labels` (default `[]`). Nothing ever creates a label in your
+mailbox without your sign-off.
 
-Workflow:
+**The workflow is two dry-runs plus one manual JSON edit:**
 
-1. Run the dry-run and copy the NEW labels you want into `approved_labels`
-   in config.json.
-2. Run the dry-run again — those labels now show as approved (would-be
-   created) and no refusal is printed.
-3. Run live:
+1. **Dry-run #1 — discover which labels are new.**
 
-    python3 gmail_inbox_manager.py --max 300
+       python3 gmail_inbox_manager.py --dry-run --max 25
+
+   The digest ends with a Labels section:
+
+       EXISTING labels:
+       - Security
+       NEW labels this run WOULD create:
+       - Receipts
+       - Banking  (NOT APPROVED — would be refused)
+
+   EXISTING labels already live in Gmail and are used as-is. NEW labels
+   would have to be created. (Shortcut: `--print-plan` prints just this
+   list and exits.)
+
+2. **The manual JSON edit — approve what you want.** Open `config.json`
+   and copy the NEW names into the `approved_labels` array: exact
+   spelling, double-quoted, comma-separated, e.g.
+
+       "approved_labels": ["Banking", "Receipts", "Security", "Unsorted"]
+
+   Any name you leave out stays unapproved — that is safe by design: on a
+   live run those messages are left untouched and a stderr line
+   `REFUSED: label 'X' is not approved` tells you exactly what to add.
+   Nothing is lost; the mail simply waits until you approve it.
+
+3. **Dry-run #2 — verify the approval took.** Run the same dry-run again:
+   approved names no longer carry the `(NOT APPROVED — would be refused)`
+   marker.
+
+4. **Run live:**
+
+       python3 gmail_inbox_manager.py --max 300
+
+   Missing + approved labels are created; missing + unapproved labels are
+   refused; existing labels are used directly.
 
 No live label is created on your mailbox without approval; dry-run and the
 refusal path are the evidence.
@@ -179,15 +255,18 @@ and passes extra flags through. stdout IS the notification message: empty
 stdout = silent run (nothing changed); non-empty stdout = digest; exit 1 =
 failure alert. It is no-agent and generalized to config paths.
 
-The delivery target (a Discord channel via cron `deliver=discord:<channel>`,
-or a webhook) is configured by your OPERATOR/scheduler — this package never
-hard-codes a channel or webhook. See config.example.json `delivery` and the
-launcher header.
+The delivery target is configured by your OPERATOR/scheduler — this package
+only prints the digest on stdout and never hard-codes a channel or webhook.
+There is no `delivery` key in the config: pipe stdout to mail, a webhook
+wrapper, or a Discord bot as your setup prefers (see the launcher header).
 
 ## Files
 
 - gmail_inbox_manager.py — the pipeline (classify → label → read → archive →
   optional summaries/follow-ups/contacts/attachments → audit → digest)
+- requirements.txt — the three Python packages (`pip install -r requirements.txt`)
+- test_safety.py — safety self-check (`python3 test_safety.py`): catch-all
+  validation, unknown-sender invariant, preflight — no API calls
 - config.example.json — every machine-specific knob (copy to config.json)
 - rules.template.json — example ruleset (copy to rules.json)
 - POLICY.example.md — worked Policy A (archive/keep) with prompts for your own
@@ -195,6 +274,15 @@ launcher header.
 - setup_token.py — one-time OAuth token setup
 - LICENSE — MIT (replaceable)
 - state/, logs/, attachments/ — created at run time
+
+## Troubleshooting
+
+| symptom | cause | fix |
+|---------|-------|-----|
+| `Token file not found` / `Re-run setup_token.py` | token missing or expired (consent screen in *Testing* status expires tokens after ~7 days) | re-run `setup_token.py` (Step 2) |
+| `REFUSED: label 'X' is not approved` | X missing from `approved_labels` | add it to config.json (Step 6), re-run |
+| `ABORTED (rate limit)` | Gmail quota — repeated 429/403/5xx | wait and re-run; lower `max_messages` |
+| `NOT READY` from `--check` | see the `PROBLEM:` lines it prints | fix each, re-run `--check` |
 
 ## License
 

@@ -57,6 +57,8 @@ from pathlib import Path
 # --------------------------------------------------------------------------
 DEFAULTS = {
     "token_path": "~/.config/gmail-inbox-manager/token.json",
+    # !! Unused — resolved from config but never consumed by the pipeline;
+    # setup_token.py takes its own --client-secret flag instead.
     "client_secret_path": "",
     "scopes": ["https://www.googleapis.com/auth/gmail.modify"],
     "rules_path": "./rules.json",
@@ -476,6 +478,8 @@ def resolve_labels(service, cfg, rules, labelmap, dry_run, log):
 # Fetch: paginate the inbox, then batch metadata gets
 # --------------------------------------------------------------------------
 
+# !! Duplicate — byte-for-byte the same pagination loop as list_filtered_ids();
+# this is list_filtered_ids(service, cfg, "in:inbox", ...) with a copied loop.
 def list_inbox_ids(service, cfg, max_msgs, log):
     ids, token = [], None
     while len(ids) < max_msgs:
@@ -685,6 +689,7 @@ def followups(service, cfg, state, log):
                         if isinstance(rec, dict) and rec.get("at", "") >= cutoff}
     ids, token = [], None
     limit = 150
+    # !! Duplicate — same page-loop as list_filtered_ids (threads vs messages)
     while len(ids) < limit:
         kwargs = {"userId": "me", "q": f"newer_than:{cfg['followup_days']}d",
                   "maxResults": min(cfg["page_size"], limit - len(ids))}
@@ -716,6 +721,7 @@ def followups(service, cfg, state, log):
             continue
         msgs = []
         for m in th.get("messages", []):
+            # !! Duplicate — same header extraction as _headers_of() (plus Date)
             hdrs = {h["name"].lower(): h.get("value", "")
                     for h in m.get("payload", {}).get("headers", [])}
             msgs.append({"labels": m.get("labelIds", []),
@@ -801,6 +807,7 @@ def extract_attachments(service, cfg, att_state, dest, days, me, log, dry):
     query = f"newer_than:{days}d has:attachment"
     ids, token = [], None
     limit = 100
+    # !! Duplicate — same page-loop as list_filtered_ids (attachments vs messages)
     while len(ids) < limit:
         kwargs = {"userId": "me", "q": query,
                   "maxResults": min(cfg["page_size"], limit - len(ids))}
@@ -1041,6 +1048,86 @@ def render_digest(cfg, now, scanned, cat_counts, archived, kept, errors,
 # Main pipeline
 # --------------------------------------------------------------------------
 
+def make_console():
+    """rich Console for interactive output, or None when rich is absent.
+
+    Preflight must work precisely when deps are missing, so rich is probed
+    lazily and every caller falls back to plain print(). The cron digest
+    never goes through this — stdout must stay a clean notification."""
+    try:
+        from rich.console import Console
+        return Console()
+    except ImportError:
+        return None
+
+
+def emit(con, text, style=None):
+    """Print one line: styled via rich when available, plain otherwise."""
+    if con is None:
+        print(text)
+    else:
+        con.print(text, style=style, markup=False, highlight=False,
+                  soft_wrap=True)
+
+
+def preflight(cfg, rules):
+    """--check: validate dependencies, config, ruleset and token WITHOUT
+    any Gmail API call. Prints one line per check and returns 0 when the
+    install is ready to run (1 otherwise), so scripts can gate on it."""
+    problems = []
+
+    # 1. runtime dependencies
+    try:
+        import googleapiclient  # noqa: F401
+        from google.oauth2 import credentials  # noqa: F401
+    except ImportError:
+        problems.append("missing Python deps — run: "
+                        "python3 -m pip install -r requirements.txt")
+
+    # 2. token: present, parseable, refreshable, not group/world-readable
+    tp = Path(cfg["token_path"])
+    if not tp.exists():
+        problems.append(f"token not found: {tp} — run setup_token.py first "
+                        f"(README step 2)")
+    else:
+        try:
+            payload = json.loads(tp.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as exc:
+            payload = None
+            problems.append(f"token unreadable ({tp}): {exc}")
+        if payload is not None:
+            if not payload.get("refresh_token"):
+                problems.append("token has no refresh_token — re-run "
+                                "setup_token.py")
+            if os.name == "posix" and (tp.stat().st_mode & 0o077):
+                problems.append(f"token permissions too open: {tp} — chmod 600")
+
+    # 3. documented safety bounds (README "Safety invariants")
+    if cfg["page_size"] > 25 or cfg["pass_size"] > 25:
+        problems.append("page_size/pass_size must stay <= 25 (Gmail quota)")
+    if cfg["modify_chunk"] > 50:
+        problems.append("modify_chunk must stay <= 50 ids per batchModify")
+    if cfg["api_sleep_seconds"] < 1.5:
+        problems.append("api_sleep_seconds must be >= 1.5")
+
+    # config + ruleset were already validated by load_config()/load_rules()
+    con = make_console()
+    catch = rules[-1]
+    emit(con, f"config : {cfg['_config_path']}")
+    emit(con, f"rules  : {cfg['rules_path']} ({len(rules)} rules; catch-all "
+              f"'{catch['name']}' archive=false)")
+    emit(con, f"token  : {tp}")
+    if problems:
+        for p in problems:
+            emit(con, f"PROBLEM: {p}", style="red")
+        emit(con, f"NOT READY — {len(problems)} problem(s) above.",
+             style="red")
+        return 1
+    emit(con, "READY — next: python3 gmail_inbox_manager.py --dry-run --max 25",
+         style="green")
+    return 0
+
+
 def parse_args(argv):
     ap = argparse.ArgumentParser(
         description="Gmail Inbox Manager — classify, label and archive mail "
@@ -1074,6 +1161,9 @@ def parse_args(argv):
                     help="skip the attachment scan")
     ap.add_argument("--skip-contacts", action="store_true",
                     help="skip new-contact tracking")
+    ap.add_argument("--check", action="store_true",
+                    help="preflight: validate deps, config, rules and token "
+                         "without any Gmail API call; exit 1 if not ready")
     ap.add_argument("--print-plan", action="store_true",
                     help="print the label plan (existing / would-create) and exit")
     return ap.parse_args(argv)
@@ -1097,7 +1187,7 @@ def main(argv=None):
 
     dry = args.dry_run or bool(os.environ.get("DRY_RUN"))
     if dry:
-        os.environ["DRY_RUN"] = "1"
+        os.environ["DRY_RUN"] = "1"  # !! Unused — nothing reads DRY_RUN again this run
 
     log = make_logger(cfg["run_log"])
     log(f"=== gmail-inbox-manager start mode={'DRY-RUN' if dry else 'LIVE'} "
@@ -1105,6 +1195,9 @@ def main(argv=None):
 
     rules = load_rules(cfg["rules_path"])
     log(f"rules={cfg['rules_path']} rules={len(rules)}")
+
+    if args.check:
+        return preflight(cfg, rules)
 
     try:
         service = build_service(cfg, log)
@@ -1122,6 +1215,8 @@ def main(argv=None):
         log, "getProfile", cfg).get("emailAddress", "").lower()
     log(f"account={me}")
 
+    # !! Unused — write-only cache: state/labels.json is saved every run but
+    # never read back for lookups; resolve_labels() re-queries the API anyway.
     labelmap = load_json(cfg["label_map_path"], {"version": 1, "labels": {}})
     label_ids, plan = resolve_labels(service, cfg, rules, labelmap, dry, log)
     log(f"label plan: existing={len(plan['existing'])} "
@@ -1129,18 +1224,23 @@ def main(argv=None):
         f"unapproved={len(plan['unapproved'])}")
 
     if args.print_plan:
-        print("EXISTING labels:")
+        # !! Duplicate — same label-plan printing as render_digest()'s Labels
+        # section; kept because --print-plan must work before the digest exists.
+        con = make_console()
+        emit(con, "EXISTING labels:")
         for n in sorted(plan["existing"]):
-            print(f"- {n}")
-        print("NEW labels this run WOULD create:")
+            emit(con, f"- {n}")
+        emit(con, "NEW labels this run WOULD create:")
         new_all = sorted(plan["approved_new"] + plan["unapproved"])
         if new_all:
             for n in new_all:
-                mark = "" if n in plan["approved_new"] else \
-                    "  (NOT APPROVED — would be refused)"
-                print(f"- {n}{mark}")
+                if n in plan["approved_new"]:
+                    emit(con, f"- {n}", style="green")
+                else:
+                    emit(con, f"- {n}  (NOT APPROVED — would be refused)",
+                         style="red")
         else:
-            print("- (none)")
+            emit(con, "- (none)")
         return 0
 
     if not dry:
@@ -1310,6 +1410,8 @@ def main(argv=None):
     att_extracted = []
     if cfg["enable_attachments"] and not args.skip_attachments:
         try:
+            # !! Unused — the per-file skip reasons are computed but never
+            # reported anywhere (digest and log only see att_extracted).
             att_extracted, _skipped = extract_attachments(
                 service, cfg, att_state, cfg["attachment_dest"],
                 cfg["attachment_days"], me, log, dry)

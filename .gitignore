@@ -8,6 +8,7 @@ rules.json
 # Runtime state — created at run time.
 state/
 logs/
+audits/
 attachments/
 __pycache__/
 .run.lock

@@ -92,22 +92,27 @@ fixed path — every path comes from config.json.
 
     mv ~/Downloads/client_secret*.json ./client_secret.json
 
-5. Create the token (opens a browser; asks you to sign in and consent):
+5. Create the token. No local browser is required: the script prints the
+   full Google consent URL and waits on a loopback callback server.
 
     python3 setup_token.py --client-secret ./client_secret.json --token-out ./google_token.json
 
-   Headless box: use --headless, open the printed URL yourself, and paste the
-   code back:
+   Defaults are pre-wired for this host, so plain `python3 setup_token.py`
+   works: --client-secret falls back to the comms profile copy, --port is a
+   fixed 9090 (so the ssh -L instruction is always the same command), and the
+   token is written to ./google_token.json.
 
-    python3 setup_token.py --client-secret ./client_secret.json --token-out ./google_token.json --headless
+   Headless box (this VM): the script detects the missing browser, prints the
+   consent URL itself, and waits. From your laptop open the tunnel:
 
-   **`--headless` may be rejected by Google** — the paste-a-code
-   (out-of-band) flow it uses is deprecated. The reliable alternative on a
-   server is a port forward: from your laptop run
-   `ssh -L 9090:localhost:9090 you@server`, then on the server run
-   setup_token.py with `--port 9090`, and open http://localhost:9090 in the
-   laptop's browser to finish the consent — the token is written on the
-   server.
+    ssh -L 9090:localhost:9090 you@server
+
+   then on the server run setup_token.py (any order works — the tunnel only
+   needs to exist before you open the URL), and open the printed URL in the
+   laptop's browser. The URL contains `redirect_uri=http://localhost:9090/`;
+   after you approve, the token is written on the server and verified with
+   one real Gmail API call (users.getProfile): the script prints VERIFIED or
+   FAILED and exits non-zero on failure.
 
    The token is written with mode 600, contains a refresh token (one-time
    setup), and requests scope gmail.modify only — gmail.send is deliberately

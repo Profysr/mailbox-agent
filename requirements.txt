@@ -1,0 +1,5 @@
+# Runtime + setup dependencies for gmail-inbox-manager.
+#   python3 -m pip install -r requirements.txt
+google-api-python-client
+google-auth
+google-auth-oauthlib   # only needed for setup_token.py (one-time token setup)

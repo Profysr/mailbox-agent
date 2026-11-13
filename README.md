@@ -2,7 +2,7 @@
 
 A configurable, safety-first Gmail triage tool: classify inbox mail against a
 ruleset, apply Gmail labels, mark read, and archive low-priority mail — never
-send, reply, trash, or delete. Productized from the uc09 consolidated inbox
+send, reply, trash, or delete. Productized from the Gmail consolidated inbox
 manager so a third party can set it up on their own machine with their own
 Gmail account.
 

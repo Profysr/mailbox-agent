@@ -240,6 +240,11 @@ def build_service(cfg, log):
             token_path.write_text(
                 json.dumps(json.loads(creds.to_json()), indent=2),
                 encoding="utf-8")
+            try:
+                # never let a refreshed token land group/world-readable
+                os.chmod(token_path, 0o600)
+            except OSError:
+                pass
     if not creds.valid:
         raise AuthError(
             f"Token in {token_path} is not valid.\n"
@@ -346,8 +351,8 @@ def load_rules(path):
     FIRST match wins. `archive: true` also removes INBOX (message stays in
     All Mail — reversible). `archive: false` keeps the message in the inbox.
 
-    The trailing catch-all rule (empty match lists) must be archive:false —
-    unknown senders are never archived."""
+    The LAST rule must be the catch-all (empty match lists) with
+    archive:false — unknown senders are never archived."""
     path = Path(path)
     if not path.exists():
         raise SystemExit(f"ERROR: rules file not found: {path}")
@@ -365,12 +370,17 @@ def load_rules(path):
         if not isinstance(r["match"], dict):
             raise SystemExit(f"ERROR: rule #{i} in {path} has a non-object match")
     catch_all = rules[-1]
-    if not catch_all["match"].get("from_contains") and \
-            not catch_all["match"].get("subject_contains"):
-        if catch_all.get("archive"):
-            raise SystemExit(
-                f"ERROR: the catch-all rule '{catch_all['name']}' in {path} "
-                f"must have archive=false — unknown senders are never archived")
+    if catch_all["match"].get("from_contains") or \
+            catch_all["match"].get("subject_contains"):
+        raise SystemExit(
+            f"ERROR: the LAST rule in {path} must be the catch-all with empty "
+            f"from_contains and subject_contains — classify() falls through "
+            f"to the last rule, so a matching last rule would label and "
+            f"archive unknown senders")
+    if catch_all.get("archive"):
+        raise SystemExit(
+            f"ERROR: the catch-all rule '{catch_all['name']}' in {path} "
+            f"must have archive=false — unknown senders are never archived")
     return rules
 
 

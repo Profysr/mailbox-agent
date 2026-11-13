@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="mailbox-agent is a personal Gmail organizer. It sorts your inbox with rules, labels mail, and archives low-priority messages. It never sends, replies to, or deletes email.">
+<title>mailbox-agent — a personal Gmail organizer</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%232f6f4f'/%3E%3Cpath d='M3 5.5h10v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-6zm0 1 5 3.2 5-3.2' fill='none' stroke='%23ffffff' stroke-width='1.2'/%3E%3C/svg%3E">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="index.html">mailbox<span>-agent</span></a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="index.html">Home</a>
+      <a href="privacy.html">Privacy</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="hero">
+    <h1>Your inbox, sorted by rules you wrote.</h1>
+    <p class="lede">mailbox-agent is a personal Gmail organizer. It runs hourly on its owner's
+    own server, sorts incoming mail into labels, and leaves everything else exactly
+    as it is. It never sends, replies to, or deletes email.</p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="privacy.html">Read the privacy policy</a>
+      <a class="btn btn-ghost" href="#contact">Contact</a>
+    </div>
+  </section>
+
+  <section id="what-it-does">
+    <h2>What it does</h2>
+    <p>mailbox-agent is a single-person tool. It is not a bulk mailing service, not a CRM,
+    and not a shared team inbox. Exactly one account is authorized: the owner's own.</p>
+    <ul class="features">
+      <li>
+        <strong>Rule-based classification</strong>
+        <p>Sender and subject rules decide a category. The first matching rule wins.
+        Unknown senders land in a safe catch-all and stay in the inbox.</p>
+      </li>
+      <li>
+        <strong>Automatic labeling</strong>
+        <p>Matched mail receives a Gmail label: Banking, Security, Finance-Tax, Receipts,
+        Careers, Jobs, Newsletters, Personal, Subscriptions, or Unsorted.</p>
+      </li>
+      <li>
+        <strong>Mark read and archive</strong>
+        <p>Rules may mark mail read and remove it from the inbox. Archiving is optional
+        per rule and fully reversible. Nothing is deleted.</p>
+      </li>
+      <li>
+        <strong>Follow-up detection</strong>
+        <p>The tool flags threads that need your reply and threads where you wait for
+        a reply. Bulk senders and notifications are ignored.</p>
+      </li>
+      <li>
+        <strong>Extractive summaries</strong>
+        <p>Each run produces short summaries of kept mail. The summaries come from the
+        message text itself. No AI model is involved.</p>
+      </li>
+      <li>
+        <strong>Run digests</strong>
+        <p>Every run prints a plain-text digest of what it did. An empty digest means
+        nothing changed.</p>
+      </li>
+    </ul>
+  </section>
+
+  <section id="how-it-works">
+    <h2>How it works</h2>
+    <ol class="steps">
+      <li>
+        <strong>Hourly pass</strong>
+        A scheduled job starts the tool once per hour. It reads message metadata
+        from the inbox.
+      </li>
+      <li>
+        <strong>Classification</strong>
+        Each message is matched against the ruleset. The first match wins. Unknown
+        senders fall to the Unsorted catch-all and stay in the inbox.
+      </li>
+      <li>
+        <strong>Actions</strong>
+        The tool adds labels, clears the unread flag, and archives mail only where a
+        rule allows it. Every action is reversible.
+      </li>
+      <li>
+        <strong>Local state</strong>
+        Processed message IDs, contacts, and follow-up threads are recorded on the
+        owner's machine. Each message is handled once.
+      </li>
+      <li>
+        <strong>Audit and digest</strong>
+        The tool appends one line per action to a local audit log and prints a short
+        run digest.
+      </li>
+    </ol>
+    <div class="note">
+      <p>New labels are created only after they are explicitly approved in the
+      configuration. Mail from unapproved categories is left untouched.</p>
+    </div>
+  </section>
+
+  <section id="never">
+    <h2>What it never does</h2>
+    <ul class="never">
+      <li>Never sends email.</li>
+      <li>Never replies to or forwards email.</li>
+      <li>Never trashes or deletes email.</li>
+      <li>Never shares, sells, or uploads mailbox data.</li>
+    </ul>
+  </section>
+
+  <section id="privacy-short">
+    <h2>Data and privacy</h2>
+    <p>All state stays on the owner's own machine. No mailbox data is sold or shared
+    with anyone. You can revoke the app's access at any time from your Google
+    Account security page. The <a href="privacy.html">privacy policy</a> lists the
+    exact Google scopes requested, what is stored, and where.</p>
+  </section>
+
+  <section id="contact">
+    <h2>Contact</h2>
+    <p>Questions about mailbox-agent? Write to
+    <a href="mailto:bilal072ahmad@gmail.com">bilal072ahmad@gmail.com</a>.</p>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p>&copy; <span id="year">2026</span> mailbox-agent</p>
+    <nav aria-label="Footer">
+      <a href="index.html">Home</a> &middot;
+      <a href="privacy.html">Privacy policy</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+</script>
+
+</body>
+</html>

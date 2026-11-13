@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Privacy policy for mailbox-agent, a personal Gmail organizer. Names the Google scopes requested, what data is accessed and stored, and how to revoke access.">
+<title>Privacy Policy — mailbox-agent</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%232f6f4f'/%3E%3Cpath d='M3 5.5h10v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-6zm0 1 5 3.2 5-3.2' fill='none' stroke='%23ffffff' stroke-width='1.2'/%3E%3C/svg%3E">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="index.html">mailbox<span>-agent</span></a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="index.html">Home</a>
+      <a href="privacy.html">Privacy</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap policy">
+
+  <section class="hero">
+    <h1>Privacy Policy</h1>
+    <p class="lede">Effective date: 13 November 2026. This policy covers mailbox-agent,
+    a personal Gmail organization tool.</p>
+  </section>
+
+  <section>
+    <h2>1. Who operates this app</h2>
+    <p>mailbox-agent is a personal tool operated by one person for their own mailbox.
+    It is not a service offered to the public. Only the owner's own Gmail account,
+    bilal072ahmad@gmail.com, is authorized. No other user's mailbox is accessed.</p>
+  </section>
+
+  <section>
+    <h2>2. What the app requests from Google</h2>
+    <p>mailbox-agent authorizes with a single Google OAuth scope:</p>
+    <ul>
+      <li><code>https://www.googleapis.com/auth/gmail.modify</code> — read mail, and
+      change labels, the read state, and the inbox (archive) state of messages.</li>
+    </ul>
+    <p>With this scope the app reads message metadata and content, applies labels,
+    marks messages read, and archives mail. The app never sends, replies to,
+    forwards, trashes, or deletes email.</p>
+  </section>
+
+  <section>
+    <h2>3. Companion tool on the same account</h2>
+    <p>The same Google account also authorizes a separate Google Workspace skill,
+    run by the same owner for the same account. Its OAuth token may carry additional
+    scopes, including <code>gmail.readonly</code> and <code>gmail.send</code>, plus
+    other Google Workspace scopes such as Calendar, Drive, Google Sheets, and Google
+    Docs. Those scopes belong to the companion skill. mailbox-agent itself uses only
+    <code>gmail.modify</code> and does not access those other services.</p>
+  </section>
+
+  <section>
+    <h2>4. Data the app reads</h2>
+    <ul>
+      <li>Message metadata: sender, recipient, subject, date, and label state.</li>
+      <li>Message content: headers and body text of inbox messages, read to classify
+      and summarize them.</li>
+      <li>Thread state for recent threads, to detect follow-ups.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>5. Data the app stores, and where</h2>
+    <p>Everything the app stores stays on the owner's own private server. The app
+    writes nothing to any cloud service. Stored locally:</p>
+    <ul>
+      <li>Processed message IDs — so each message is handled once. The list is
+      capped and old entries roll off.</li>
+      <li>Contact records — senders seen for the first time.</li>
+      <li>Follow-up records — threads awaiting a reply.</li>
+      <li>Label mappings — label names mapped to Gmail label IDs.</li>
+      <li>An append-only audit log — one line per action taken.</li>
+      <li>Run logs and, when extraction is enabled, saved attachment files.</li>
+    </ul>
+    <p>No mailbox data is copied to any third-party service. The only network calls
+    the app makes are to the Gmail API on Google's own endpoints.</p>
+  </section>
+
+  <section>
+    <h2>6. Retention</h2>
+    <p>Local state is kept for as long as the app runs. Processed message IDs are
+    capped, so the oldest entries are dropped first. The audit log and run logs are
+    append-only files on the owner's machine; the owner deletes them directly when
+    they are no longer wanted. No copies exist anywhere else. Deleting the app's
+    files removes all stored data.</p>
+  </section>
+
+  <section>
+    <h2>7. Sharing and sale of data</h2>
+    <p>mailbox-agent does not sell, rent, share, or disclose mailbox data to any
+    person or company. There is no advertising, no analytics, and no tracking code
+    in the app or on this site.</p>
+  </section>
+
+  <section>
+    <h2>8. Your control over access</h2>
+    <p>You can revoke the app's access at any time:</p>
+    <ol>
+      <li>Open your Google Account at <a href="https://myaccount.google.com/permissions" rel="noopener">myaccount.google.com/permissions</a>
+      (Google Account &rarr; Security &rarr; Third-party apps with account access).</li>
+      <li>Find the app entry for mailbox-agent and choose <strong>Remove access</strong>.</li>
+    </ol>
+    <p>Revoking stops all further access immediately. Revoking does not delete the
+    local state files on the owner's machine; those are deleted by the owner
+    directly.</p>
+  </section>
+
+  <section>
+    <h2>9. Changes to this policy</h2>
+    <p>Updates to this policy are posted on this page with a new effective date.</p>
+  </section>
+
+  <section>
+    <h2>10. Contact</h2>
+    <p>Privacy questions or concerns? Write to
+    <a href="mailto:bilal072ahmad@gmail.com">bilal072ahmad@gmail.com</a>.</p>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p>&copy; <span id="year">2026</span> mailbox-agent</p>
+    <nav aria-label="Footer">
+      <a href="index.html">Home</a> &middot;
+      <a href="privacy.html">Privacy policy</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+</script>
+
+</body>
+</html>
